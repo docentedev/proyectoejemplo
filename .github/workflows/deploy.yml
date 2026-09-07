@@ -23,7 +23,7 @@ jobs:
 
       # 1. Configurar JDK 21 y la caché automática para Gradle
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -51,12 +51,12 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-      # 5. Despliegue Automatizado e Idempotente vía SSH
+      # 5. Despliegue Automatizado e Idempotente vía SSH a Amazon Linux
       - name: Deploy to EC2 Instance
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.TARGET_HOST_IP }}  # Lee la IP pública desde Repository Variables
-          username: ubuntu
+          username: ec2-user                 # <-- CAMBIADO: Usuario nativo para Amazon Linux
           key: ${{ secrets.EC2_SSH_KEY }}     # Lee la llave desde Repository Secrets
           port: 22
           # Pasamos la IP al entorno interno del script remoto usando el bloque 'envs' de la acción
