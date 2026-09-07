@@ -35,7 +35,7 @@ jobs:
           chmod +x gradlew
           ./gradlew bootJar -x test
 
-      # 3. Autenticarse en GitHub Container Registry (GHCR) usando las variables automáticas
+      # 3. Autenticarse en GitHub Container Registry (GHCR) usando las variables de GitHub
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -51,25 +51,38 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-      # 5. Despliegue Automatizado e Idempotente vía SSH a Amazon Linux
+      # 5. Despliegue e Instalación Automatizada, Replicable e Idempotente vía SSH
       - name: Deploy to EC2 Instance
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ vars.TARGET_HOST_IP }}  # Lee la IP pública desde Repository Variables
-          username: ec2-user                 # <-- CAMBIADO: Usuario nativo para Amazon Linux
-          key: ${{ secrets.EC2_SSH_KEY }}     # Lee la llave desde Repository Secrets
+          host: ${{ vars.TARGET_HOST_IP }}  # IP desde Repository Variables
+          username: ec2-user                 # Usuario para Amazon Linux
+          key: ${{ secrets.EC2_SSH_KEY }}     # Llave desde Repository Secrets
           port: 22
-          # Pasamos la IP al entorno interno del script remoto usando el bloque 'envs' de la acción
           envs: TARGET_HOST_IP
           script: |
+            # --- BLOQUE IDEMPOTENTE DE INSTALACIÓN (Provisionamiento automático) ---
+            if ! command -v docker &> /dev/null; then
+              echo "Docker no está instalado. Iniciando aprovisionamiento automático..."
+              sudo dnf update -y
+              sudo dnf install -y docker
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              sudo usermod -aG docker ec2-user
+              echo "Docker instalado con éxito. Reaplicando privilegios de grupo..."
+              # Forzamos a que la sesión actual de bash reconozca el nuevo grupo de docker sin desloguearse
+              exec sg docker "$0" "$@"
+            fi
+            
+            # --- PROCESO ESTÁNDAR DE DESPLIEGUE ---
             # Autenticar el Docker local del EC2 en GHCR usando el Token Secreto
             echo "${{ secrets.GH_CR_PAT }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
             
             # Descargar la última versión de la imagen recién subida
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             
-            # --- PASOS IDEMPOTENTES ---
-            # Detiene el contenedor anterior si existe (evita fallos en el primer despliegue)
+            # --- PASOS IDEMPOTENTES DEL CONTENEDOR ---
+            # Detiene el contenedor anterior si existe (el '|| true' evita fallos en la primera corrida)
             docker stop ${{ env.CONTAINER_NAME }} || true
             
             # Elimina el contenedor antiguo para poder liberar el nombre
@@ -87,5 +100,4 @@ jobs:
               --restart unless-stopped \
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         env:
-          # Definimos formalmente la variable de entorno que consumirá 'envs' arriba
           TARGET_HOST_IP: ${{ vars.TARGET_HOST_IP }}
