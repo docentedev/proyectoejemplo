@@ -1,0 +1,90 @@
+name: Deploy Spring Boot to EC2 via GHCR
+
+on:
+  push:
+    branches:
+      - main  # Se ejecuta automáticamente al hacer push a la rama main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  CONTAINER_NAME: spring-app-ejemplo
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Permiso obligatorio para escribir en GitHub Packages
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 1. Configurar JDK 21 y la caché automática para Gradle
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle' # Cambiado de 'maven' a 'gradle'
+
+      # 2. Dar permisos de ejecución al Gradle Wrapper y compilar el JAR
+      - name: Build with Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew bootJar -x test
+
+      # 3. Autenticarse en GitHub Container Registry (GHCR) usando las variables automáticas
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 4. Construir y subir la imagen Docker a GHCR con el tag 'latest'
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      # 5. Despliegue Automatizado e Idempotente vía SSH (IP protegida fuera del código)
+      - name: Deploy to EC2 Instance
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.TARGET_HOST_IP }}  # Lee la IP desde Repository Variables
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}     # Lee la llave desde Repository Secrets
+          port: 22
+          # Inyectamos la variable al entorno interno del script SSH remoto
+          envs: TARGET_HOST_IP
+        env:
+          TARGET_HOST_IP: ${{ vars.TARGET_HOST_IP }}
+        script: |
+          # Autenticar el Docker local del EC2 en GHCR usando el Token Secreto
+          echo "${{ secrets.GH_CR_PAT }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          
+          # Descargar la última versión de la imagen recién subida
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+          # --- PASOS IDEMPOTENTES ---
+          # Detiene el contenedor anterior si existe (el '|| true' evita que falle si es el primer despliegue)
+          docker stop ${{ env.CONTAINER_NAME }} || true
+          
+          # Elimina el contenedor antiguo para poder liberar el nombre
+          docker rm ${{ env.CONTAINER_NAME }} || true
+          
+          # Limpia imágenes huérfanas/antiguas para no colapsar el almacenamiento del disco en la capa gratuita
+          docker image prune -f
+          
+          # --- LANZAMIENTO CON VARIABLE DE ENTORNO DINÁMICA DE HOST IP ---
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
+            -p 80:80 \
+            -e PORT=80 \
+            -e PUBLIC_HOST_URL="http://$TARGET_HOST_IP" \
+            --restart unless-stopped \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
