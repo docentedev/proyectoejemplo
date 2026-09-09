@@ -21,6 +21,10 @@ public class SecretGatewayFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String secretHeader = request.getHeader("X-Secret-Gateway");
+        String path = request.getRequestURI();
+
+        // LOG DE DEPURACIÓN TEMPORAL
+        System.out.println("DEBUG SECRETO -> Ruta: " + path + " | Recibido: [" + secretHeader + "] | Esperado: [" + expectedSecret + "]");
 
         // Validar que la cabecera exista y coincida exactamente con el secreto
         if (expectedSecret == null || !expectedSecret.equals(secretHeader)) {
