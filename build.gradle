@@ -14,6 +14,16 @@ java {
     }
 }
 
+ext {
+    awssdkVersion = '2.29.52'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "software.amazon.awssdk:bom:${awssdkVersion}"
+    }
+}
+
 repositories {
     mavenCentral()
 }
@@ -28,6 +38,10 @@ dependencies {
 
     // 2. OBLIGATORIO SI USAS JWT: Soporte para validar tokens de autorización (OAuth2 Resource Server)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+
+    // 3. Persistencia: DynamoDB (credenciales vía IAM Role de la instancia EC2, sin llaves estáticas)
+    implementation 'software.amazon.awssdk:dynamodb-enhanced'
+    implementation 'software.amazon.awssdk:dynamodb'
 }
 
 tasks.named('test') {
