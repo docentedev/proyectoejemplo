@@ -1,8 +1,4 @@
-package com.docente.proyectoejemplo.products;
+package com.docente.proyectoejemplo.products.dto;
 
-public record Product(String id, String name, Double price, Integer stock) {
-    // Constructor de copia
-    public Product(String id, Product unProduct) {
-        this(id, unProduct.name(), unProduct.price(), unProduct.stock());
-    }
+public record ProductResponseDto(String id, String name, Double price, Integer stock) {
 }
