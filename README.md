@@ -209,3 +209,5 @@ Transfer-Encoding: chunked
 
 {"status":"UP","error":null}
 ```
+
+## Asegurar con secreto
