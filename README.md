@@ -209,5 +209,3 @@ Transfer-Encoding: chunked
 
 {"status":"UP","error":null}
 ```
-
-## Configurar Seguridad
