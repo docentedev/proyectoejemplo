@@ -3,7 +3,7 @@ name: Deploy Spring Boot to EC2 via GHCR
 on:
   push:
     branches:
-      - main  # Se ejecuta automáticamente al hacer push a la rama main
+      - main
 
 env:
   REGISTRY: ghcr.io
@@ -15,13 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # Permiso obligatorio para escribir en GitHub Packages
+      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. Configurar JDK 21 y la caché automática para Gradle
       - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
@@ -29,13 +28,11 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      # 2. Dar permisos de ejecución al Gradle Wrapper y compilar el JAR
       - name: Build with Gradle
         run: |
           chmod +x gradlew
           ./gradlew bootJar -x test
 
-      # 3. Autenticarse en GitHub Container Registry (GHCR) usando las variables de GitHub
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -43,7 +40,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 4. Construir y subir la imagen Docker a GHCR con el tag 'latest'
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -51,7 +47,6 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-      # 5. Despliegue Automatizado e Idempotente vía SSH
       - name: Deploy to EC2 Instance
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -61,7 +56,6 @@ jobs:
           port: 22
           envs: TARGET_HOST_IP,API_GATEWAY_SECRET,GH_CR_PAT
           script: |
-            # --- APROVISIONAMIENTO IDEMPOTENTE DE SWAP ---
             if [ ! -f /swapfile ]; then
               echo "Instancia sin Swap. Creando 2GB..."
               sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
@@ -70,8 +64,7 @@ jobs:
               sudo swapon /swapfile
               echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
             fi
-
-            # --- APROVISIONAMIENTO IDEMPOTENTE DE DOCKER ---
+            
             if ! command -v docker &> /dev/null; then
               echo "Docker no está instalado. Iniciando instalación..."
               sudo dnf update -y
@@ -80,21 +73,14 @@ jobs:
               sudo systemctl enable docker
               sudo usermod -aG docker ec2-user
             fi
-
-            # --- EJECUCIÓN SEGURA CON PERMISOS REFRESCADOS ---
+            
             sg docker -c "
-              # Autenticar el Docker local del EC2 en GHCR
               echo '$GH_CR_PAT' | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-
-              # Descargar la última versión de la imagen
               docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-              # --- PASOS IDEMPOTENTES DEL CONTENEDOR ---
               docker stop ${{ env.CONTAINER_NAME }} || true
               docker rm ${{ env.CONTAINER_NAME }} || true
               docker image prune -f
-
-              # --- MAPEO CRUZADO: Puerto 80 del Servidor al 8080 del Contenedor ---
+            
               docker run -d \
                 --name ${{ env.CONTAINER_NAME }} \
                 -p 80:8080 \
