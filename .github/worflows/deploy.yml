@@ -70,7 +70,7 @@ jobs:
               sudo swapon /swapfile
               echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
             fi
-            
+  
             # --- APROVISIONAMIENTO IDEMPOTENTE DE DOCKER ---
             if ! command -v docker &> /dev/null; then
               echo "Docker no está instalado. Iniciando instalación..."
@@ -80,29 +80,31 @@ jobs:
               sudo systemctl enable docker
               sudo usermod -aG docker ec2-user
             fi
-            
+  
             # --- EJECUCIÓN SEGURA CON PERMISOS REFRESCADOS ---
             sg docker -c "
               # Autenticar el Docker local del EC2 en GHCR
               echo '${{ secrets.GH_CR_PAT }}' | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-            
+  
               # Descargar la última versión de la imagen
               docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            
+  
               # --- PASOS IDEMPOTENTES DEL CONTENEDOR ---
               docker stop ${{ env.CONTAINER_NAME }} || true
               docker rm ${{ env.CONTAINER_NAME }} || true
               docker image prune -f
-            
+  
               # --- MAPEO CRUZADO: Puerto 80 del Servidor al 8080 del Contenedor ---
               docker run -d \
                 --name ${{ env.CONTAINER_NAME }} \
                 -p 80:8080 \
                 -e PORT=8080 \
                 -e PUBLIC_HOST_URL='http://$TARGET_HOST_IP' \
-                -e API_GATEWAY_SECRET="${{ secrets.API_GATEWAY_SECRET }}" \
+                -e API_GATEWAY_SECRET='$API_GATEWAY_SECRET' \
                 --restart unless-stopped \
                 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             "
         env:
           TARGET_HOST_IP: ${{ vars.TARGET_HOST_IP }}
+          API_GATEWAY_SECRET: ${{ secrets.API_GATEWAY_SECRET }}
+          GH_CR_PAT: ${{ secrets.GH_CR_PAT }}
