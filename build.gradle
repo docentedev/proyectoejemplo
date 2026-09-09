@@ -22,6 +22,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // 1. OBLIGATORIO: Spring Security (para gestionar filtros y autorizaciones)
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // 2. OBLIGATORIO SI USAS JWT: Soporte para validar tokens de autorización (OAuth2 Resource Server)
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 }
 
 tasks.named('test') {
