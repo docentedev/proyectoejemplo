@@ -100,7 +100,7 @@ jobs:
                 -p 80:8080 \
                 -e PORT=8080 \
                 -e PUBLIC_HOST_URL='http://$TARGET_HOST_IP' \
-                -e API_GATEWAY_SECRET="${{ secrets.API_GATEWAY_SECRET }}" \
+                -e API_GATEWAY_SECRET='${{ secrets.API_GATEWAY_SECRET }}' \
                 --restart unless-stopped \
                 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             "
