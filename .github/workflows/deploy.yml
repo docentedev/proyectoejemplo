@@ -102,7 +102,9 @@ jobs:
                 -e PUBLIC_HOST_URL='http://$TARGET_HOST_IP' \
                 -e API_GATEWAY_SECRET='${{ secrets.API_GATEWAY_SECRET }}' \
                 -e AWS_REGION='us-east-2' \
-                -e DYNAMO_TABLE_NAME='Products' \
+                -e DB_URL='jdbc:postgresql://aws-0-us-east-2.pooler.supabase.com:5432/postgres' \
+                -e DB_USER='$SUPABASE_DB_USER' \
+                -e DB_PASSWORD='$SUPABASE_DB_PASSWORD' \
                 --restart unless-stopped \
                 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             "
@@ -110,3 +112,5 @@ jobs:
           TARGET_HOST_IP: ${{ vars.TARGET_HOST_IP }}
           API_GATEWAY_SECRET: ${{ secrets.API_GATEWAY_SECRET }}
           GH_CR_PAT: ${{ secrets.GH_CR_PAT }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
